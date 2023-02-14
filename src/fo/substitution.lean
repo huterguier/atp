@@ -109,7 +109,7 @@ def signature.id_subst (σ : signature) : σ.substitution :=
 def subid {σ : signature} : σ.substitution := 
   (λ v : σ.var, term.var v)
 
-lemma term_eq_term_subst_id {σ : signature} : ∀ t : σ.term, t ↓ σ.id_subst = t :=
+lemma signature.term.term_eq_term_subst_id {σ : signature} : ∀ t : σ.term, t ↓ σ.id_subst = t :=
   begin
     intro t,
     induction t with v f ts,
@@ -146,7 +146,7 @@ section more_general_preorder
     begin
       intro t,
       existsi signature.substitution.id,
-      exact term_eq_term_subst_id t,
+      exact signature.term.term_eq_term_subst_id t,
     end
 
   lemma trans_more_general : (transitive (@signature.term.more_general σ)) :=
@@ -262,39 +262,86 @@ def signature.term.equivalent {σ : signature} (t₁ t₂ : σ.term) : Prop :=
   t₁.more_general t₂ ∧ t₂.more_general t₁
 
 
-
-
-section comp_sub
-
-variable σ : signature
-variable ν₁ : σ.substitution
-variable ν₂ : σ.substitution
-variable t : σ.term
-variable φ : σ.formula
-variable φ' : σ.formula
-variable v : σ.var
-variable f : σ.function
-variable ngeq : f.arity ≥ 2
-variable Φ : fin f.arity → σ.formula
-
-
-
-lemma signature.formula.refl_is_subformula : reflexive (@signature.formula.is_subformula σ) :=
-  begin
-    unfold reflexive,
-    intro φ,
-    cases φ,
-    unfold signature.formula.is_subformula,
-    unfold signature.formula.is_subformula,
-    unfold signature.formula.is_subformula,
-    left,refl,
-    left, refl,
-    left, refl,
-    left, refl,
-    left, refl,
-    unfold signature.formula.is_subformula,
+lemma signature.term.refl_equivalent {σ : signature} : reflexive (@signature.term.equivalent σ) :=
+  begin 
+    intro t,
+    use σ.id_subst,
+    rw signature.term.term_eq_term_subst_id,
+    use σ.id_subst,
+    rw signature.term.term_eq_term_subst_id,
   end
 
-end comp_sub
+lemma signature.term.trans_equivalent {σ : signature} : transitive (@signature.term.equivalent σ) :=
+  begin 
+    intros x y z hxy hyz,
+    split,
+    {
+      cases hxy.left with νxy h₁,
+      cases hyz.left with νyz h₂,
+      use (νxy ↓ νyz),
+      rw ← signature.compose_sub,
+      rw [h₁, h₂],
+    },
+    {
+      cases hxy.right with νxy h₁,
+      cases hyz.right with νyz h₂,
+      use (νyz ↓ νxy),
+      rw ← signature.compose_sub,
+      rw [h₂, h₁],
+    }
+  end
+
+lemma signature.term.symm_equivalent {σ : signature} : symmetric (@signature.term.equivalent σ) :=
+  begin 
+    intros x y hxy,
+    split,
+    exact hxy.right,
+    exact hxy.left,
+  end
+
+lemma signature.term.equiv_equivalent {σ : signature} : equivalence (@signature.term.equivalent σ) :=
+  begin
+    split,
+    exact signature.term.refl_equivalent, 
+    split,
+    exact signature.term.symm_equivalent,
+    exact signature.term.trans_equivalent, 
+  end
+
+instance signature.equiv_setoid (σ : signature) : setoid σ.term :=
+  {
+    r := signature.term.equivalent,
+    iseqv := signature.term.equiv_equivalent,
+  }
+
+@[reducible]
+def signature.term_equiv (σ : signature) := quotient σ.equiv_setoid
+
+
+
+example (σ : signature) (t : σ.term) : ⟦t⟧ = quotient.mk t :=
+  begin
+    refl,
+  end 
+
+lemma signature.term.substitution_is_well_defined {σ : signature} (ν : σ.substitution) (t₁ t₂ : σ.term)  (h : t₁ ≈ t₂) : ⟦t₁ ↓ ν⟧ = ⟦t₂ ↓ ν⟧ :=
+  begin
+    apply quotient.sound,
+    cases h,
+    split,
+    cases h_left with ν_left hν_left,
+    cases h_right with ν_right hν_right,
+    sorry, sorry,
+  end
+
+def signature.term_equiv.substitute {σ : signature} (ν : σ.substitution) : σ.term_equiv → σ.term_equiv := 
+  quotient.lift (λ (t : σ.term) , ⟦t ↓ ν⟧) (signature.term.substitution_is_well_defined ν)
+
+@[reducible]
+instance signature.subst_term_equiv (σ : signature) : σ.substitutable σ.term_equiv :=
+  {
+    substitute := (λ t ν, signature.term_equiv.substitute ν t)
+  }
+
 
 
